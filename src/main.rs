@@ -1,7 +1,6 @@
 use std::io;
 
-//use mangadex_downloader::connection::get_request_url;
-use mangadex_downloader::manga::Manga;
+use dexloader::manga::Manga;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

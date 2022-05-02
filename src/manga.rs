@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use async_trait::async_trait;
 use image::{self, DynamicImage};
+use image::error::ImageResult;
 
 use crate::util;
 use crate::connection;
@@ -76,6 +77,11 @@ pub struct Manga {
     url: String,
 }
 
+pub struct MangaImage {
+    page_no: i32,
+    image: DynamicImage,
+}
+
 #[async_trait]
 impl AsyncGet for Manga {}
 
@@ -114,6 +120,10 @@ impl Manga {
         let body = self.async_get_json::<ChapterList>(&request_url).await;
 
         body
+    }
+
+    pub fn get_url(&self) -> &str {
+        &self.url
     }
 }
 
@@ -166,12 +176,15 @@ impl Chapter {
                 u
             })
             .collect();
+        all_img_url.reverse();
 
         let result = connection::async_get_image_batch(&mut all_img_url, 5)
             .await;
         
+        // TODO: Remove this
+        // Saving the images
         for (i, pic) in result.iter().enumerate() {
-            let file_name = i.to_string() + ".jpg";
+            let file_name = String::from("test_img/") + &i.to_string() + ".jpg";
             pic.save(file_name)
                 .expect("Failed to save image");
         }
@@ -187,11 +200,6 @@ impl AtHomeServerResponse {
         &self.chapter_data.hash
     }
 
-    //pub fn get_download_url_vector(&self) -> Vec<String> {
-    //    let mut url = String::from(&self.base_url);
-    //    url.push_str("/")
-    //}
-
     pub fn get_data(&self) -> &Vec<String> {
         &self.chapter_data.data
     }
@@ -206,5 +214,19 @@ impl AtHomeServerResponse {
 
     pub fn get_mut_data_save(&mut self) -> &mut Vec<String> {
         &mut self.chapter_data.data_saver
+    }
+}
+
+impl MangaImage {
+    pub fn from(page_no: i32, image: DynamicImage) -> MangaImage {
+        MangaImage { page_no, image }
+    }
+
+    pub fn save(&self, file_name: String) -> ImageResult<()> {
+        self.image.save(file_name)
+    }
+
+    pub fn get_page_no(&self) -> i32 {
+        self.page_no
     }
 }
