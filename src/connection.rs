@@ -1,29 +1,37 @@
 use reqwest;
 use tokio::task::{self, JoinHandle};
-use std::collections::HashMap;
+use futures::future::join_all;
+use image::DynamicImage;
 
-async fn async_get(url:&str, n: i32) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _res = reqwest::get(url)
+async fn async_get_image(url: String) -> Result<DynamicImage, Box<dyn std::error::Error + Send + Sync>> {
+    let res = reqwest::get(url)
         .await?
-        .json::<HashMap<String, String>>()
+        .bytes()
         .await?;
-    println!("{}", n);
-    Ok(())
+    
+    let image = image::load_from_memory(&res)?;
+    Ok(image)
 }
 
-pub async fn get_request_url(url: &'static str, concurrent_process : i32) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Declaring a vector to store the async processes' join handle in
-    let mut req_vec : Vec<JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
+pub async fn async_get_image_batch(batch: &mut Vec<String>, concurrent_process : i32) -> Vec<DynamicImage> {
+    let mut handle_vec: Vec<JoinHandle<Result<DynamicImage, Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
+    let mut index_count = 0;
 
-    // Spawns n concurrent processes
-    for i in 1..concurrent_process + 1 {
-        req_vec.push(task::spawn(async_get(url, i)));
+    for i in 0..concurrent_process {
+        match batch.pop() {
+            Some(url) => {
+                handle_vec.push(task::spawn(async_get_image(url)));
+            },
+            None => (),
+        }
     }
 
-    // Gets the result of all those processes
-    for item in req_vec.into_iter() {
-        item.await??;
-    }
-
-    Ok(())
+    let result = join_all(handle_vec)
+        .await
+        .into_iter()
+        .map(Result::unwrap)
+        .map(Result::unwrap)
+        .collect();
+    
+    result
 }
