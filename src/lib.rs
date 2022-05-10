@@ -8,7 +8,6 @@
 //! 
 //! # Example
 //! ```
-//! use std::io;
 //! use dexloader::manga::Manga;
 //! 
 //! #[tokio::main]
@@ -16,7 +15,7 @@
 //!     let url = "https://mangadex.org/title/259dfd8a-f06a-4825-8fa6-a2dcd7274230/yofukashi-no-uta";
 //!     let manga = Manga::from(url);
 //!     let chapters = manga.get_chapters(None, 0).await;
-//!     let first_chapter = &chapters.get_chapters()[0];
+//!     let first_chapter = &chapters.data[0];
 //! 
 //!     first_chapter.download().await;
 //! }
