@@ -1,9 +1,13 @@
+//! This module is concerned with making asynchronous
+//! requests.
+
 use reqwest;
 use tokio::task::{self, JoinHandle};
 use futures::future::join_all;
 
 use crate::manga::MangaImage;
 
+/// Makes a get request to fetch an image asynchronously
 async fn async_get_image(url: String, page_no: i32) -> Result<MangaImage, Box<dyn std::error::Error + Send + Sync>> {
     let res = reqwest::get(url)
         .await?
@@ -15,6 +19,11 @@ async fn async_get_image(url: String, page_no: i32) -> Result<MangaImage, Box<dy
     Ok(image)
 }
 
+/// Makes multiple get requests to fetch multiple images
+/// asynchronously.
+/// 
+/// The number of images to download at the same time can
+/// be specified with the "concurrent_process" variable.
 pub async fn async_get_image_batch(batch: &mut Vec<String>, concurrent_process : i32) -> Vec<MangaImage> {
     let mut handle_vec: Vec<JoinHandle<Result<MangaImage, Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
     let mut result_images: Vec<MangaImage> = Vec::new();
