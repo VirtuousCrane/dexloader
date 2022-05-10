@@ -15,7 +15,7 @@ async fn async_get_image(url: String, page_no: i32) -> Result<MangaImage, Box<dy
         .await?;
     
     let image = image::load_from_memory(&res)?;
-    let image = MangaImage::from(page_no, image);
+    let image = MangaImage::new(page_no, image);
     Ok(image)
 }
 

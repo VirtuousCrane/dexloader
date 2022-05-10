@@ -13,7 +13,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let manga = Manga::from(url);
     let chapters = manga.get_chapters(None, 0).await;
-    let c = &chapters.get_chapters()[0];
+    //let c = &chapters.get_chapters()[0];
+    let c = &chapters.data[0];
 
     c.download().await;
 
