@@ -47,6 +47,16 @@ pub fn deserialize_to_option_f32<'de, D>(deserializer: D) -> Result<Option<f32>,
     }
 }
 
+/// This function acts as a safe-guard to support when manga chapter titles are null.
+/// Should it be null, it will return an empty string slice instead.
+/// 
+/// # Examples
+/// ```
+/// struct SomeStruct {
+///     #[serde(deserialize_with = "deserialize_title")]
+///     title: String,
+/// }
+/// ```
 pub fn deserialize_title<'de, D> (deserializer: D) -> Result<String, D::Error>
     where
         D: Deserializer<'de>,

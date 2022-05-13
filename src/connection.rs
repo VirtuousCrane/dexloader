@@ -23,7 +23,7 @@ struct ResponseBody {
 }
 
 /// Makes a get request to fetch an image asynchronously
-async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<MangaImage, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<MangaImage, Box<dyn std::error::Error + Send + Sync>> {
     let url_clone = url.clone();
 
     let start_time = Instant::now();
@@ -38,7 +38,7 @@ async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<Mang
         .unwrap_or("MISS");
 
     let mut cache_state = false; 
-    if (cache == "HIT") {
+    if cache == "HIT" {
         cache_state = true;
     }
 
@@ -48,7 +48,7 @@ async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<Mang
         .unwrap_or("0");
     let content_length = content_length.parse::<usize>().unwrap();
 
-    if (!res.status().is_success() && report) {
+    if !res.status().is_success() && report {
         async_report(url_clone, false, cache_state, content_length, elapsed_time)
             .await?;
         panic!("Failed to retrieve image!"); // TODO: Use ERR or retry instead
@@ -58,7 +58,7 @@ async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<Mang
     let image = image::load_from_memory(&image_bytes)?;
     let image = MangaImage::new(page_no, image);
 
-    if (report) {
+    if report {
         async_report(url_clone, true, cache_state, content_length, elapsed_time).await?;
     }
     
@@ -77,7 +77,7 @@ async fn async_report(url: String, success: bool, cached: bool, bytes: usize, du
         .send()
         .await?;
     
-    if (res.status().as_u16() == 412) {
+    if res.status().as_u16() == 412 {
         let res_headers = res.headers();
         let captcha_ans = res_headers.get("X-Captcha-Sitekey")
             .unwrap()
