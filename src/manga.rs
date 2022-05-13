@@ -67,9 +67,11 @@ pub struct Chapter {
 #[derive(Serialize, Deserialize)]
 struct ChapterAttribute {
     #[serde(rename = "chapter")]
-    #[serde(deserialize_with = "util::deserialize_to_f32")]
-    no: f32,
+    #[serde(deserialize_with = "util::deserialize_to_option_f32")]
+    no: Option<f32>,
     pages: i32,
+
+    #[serde(deserialize_with = "util::deserialize_title")]
     title: String
 }
 
@@ -183,7 +185,7 @@ impl AsyncGet for Chapter {}
 impl Chapter {
     /// Returns the chapter number
     pub fn get_chapter_number(&self) -> f32 {
-        self.attributes.no
+        self.attributes.no.unwrap_or(0.0)
     }
 
     /// Returns the number of pages of a chapter

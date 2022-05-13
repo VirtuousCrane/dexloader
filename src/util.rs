@@ -22,3 +22,37 @@ pub fn deserialize_to_f32<'de, D>(deserializer: D) -> Result<f32, D::Error>
     let s: &str = Deserialize::deserialize(deserializer)?;
     f32::from_str(s).map_err(D::Error::custom)
 }
+
+/// A function to help serde parse a string as Option<f32>.
+/// 
+/// # Examples
+/// ```
+/// struct SomeStruct {
+///     #[serde(deserialize_with = "deserialize_to_option_f32")]
+///     float_inside_a_string: Option<f32>,
+/// }
+/// ```
+pub fn deserialize_to_option_f32<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
+    where
+        D: Deserializer<'de>,
+{
+    let res = Deserialize::deserialize(deserializer)
+        .map(|x: Option<_>| {
+            x.unwrap_or("".to_string())
+        });
+    let res = res.ok();
+    match res {
+        Some(s) => Ok(f32::from_str(&s).ok()),
+        None => Ok(None)
+    }
+}
+
+pub fn deserialize_title<'de, D> (deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+{
+    Deserialize::deserialize(deserializer)
+        .map(|x: Option<_>| {
+            x.unwrap_or("".to_string())
+        })
+}
