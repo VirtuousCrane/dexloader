@@ -23,4 +23,4 @@
 
 pub mod connection;
 pub mod manga;
-mod util;
+pub mod util;
