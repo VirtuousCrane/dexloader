@@ -24,3 +24,4 @@
 pub mod connection;
 pub mod manga;
 pub mod util;
+pub mod epub;

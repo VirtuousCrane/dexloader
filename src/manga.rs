@@ -16,6 +16,7 @@ use std::convert::From;
 
 use crate::util;
 use crate::connection;
+use crate::epub::Book;
 
 #[async_trait]
 /// A **data structure** that can make asynchronous get requests
@@ -66,9 +67,9 @@ pub struct Chapter {
 /// the number of pages, and the title of the chapter.
 #[derive(Serialize, Deserialize)]
 struct ChapterAttribute {
-    #[serde(rename = "chapter")]
+    //#[serde(rename = "chapter")]
     #[serde(deserialize_with = "util::deserialize_to_option_f32")]
-    no: Option<f32>,
+    chapter: Option<f32>,
     pages: i32,
 
     #[serde(deserialize_with = "util::deserialize_title")]
@@ -100,16 +101,86 @@ pub struct ChapterData {
 }
 
 /// Contains the ID of the manga and its URL.
-#[derive(Debug)]
 pub struct Manga {
     pub id: String,
     pub url: String,
+    pub data: Option<MangaData>,
+    pub title: String,
+    pub chapter_list: Option<ChapterList>,
+    pub chapter_images: Vec<ChapterImage>,
+    pub author_name: String,
 }
 
 /// A wrapper for DynamicImage with page number included.
 pub struct MangaImage {
     pub page_no: i32,
-    pub image: DynamicImage,
+    pub image: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MangaData {
+    pub data: MangaDataInner,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MangaDataInner {
+    pub attributes: MangaTitle,
+    pub relationships: Vec<MangaRelation>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MangaTitle {
+    pub title: MangaEnglishTitle,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MangaEnglishTitle {
+    pub en: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MangaRelation {
+    id: String,
+    #[serde(rename = "type")]
+    relation_type: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AuthorData {
+    data: AuthorDataInner,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AuthorDataInner {
+    attributes: AuthorAttribute
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AuthorAttribute {
+    name: String
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CoverData {
+    data: CoverDataInner
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CoverDataInner {
+    attributes: CoverAttribute
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CoverAttribute {
+    #[serde(rename = "fileName")]
+    pub file_name: String
+}
+
+pub struct ChapterImage {
+    pub chapter_no: f32,
+    pub chapter_title: String,
+    pub target_name: String,
+    pub images: Vec<MangaImage>,
 }
 
 #[async_trait]
@@ -164,18 +235,164 @@ impl Manga {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_chapters(&self, chapter_limit: Option<i32>, offset: i32) -> ChapterList {
+    pub async fn get_chapters(&mut self, chapter_limit: Option<i32>, offset: i32) {
         let request_url = self.construct_manga_chapter_request_url(offset, chapter_limit);
-        let body = self.async_get_json::<ChapterList>(&request_url).await;
+        self.chapter_list = Some(self.async_get_json::<ChapterList>(&request_url).await);
+    }
 
-        body
+    async fn get_manga_info(&mut self) -> MangaData {
+        let request_url = format!("https://api.mangadex.org/manga/{}", &self.id);
+        let data = self.async_get_json::<MangaData>(&request_url).await;
+
+        data
+    }
+
+    pub async fn fetch_author(&mut self) {
+        let author_id = self.data.as_ref().unwrap().get_author_id();
+        let request_url = format!("https://api.mangadex.org/author/{}", author_id);
+        let author_data = self.async_get_json::<AuthorData>(&request_url).await;
+        let author_name = author_data.get_name();
+        self.author_name.push_str(author_name);
+    }
+
+    pub async fn fetch_cover(&self) -> MangaImage {
+        let cover_id = self.data.as_ref().unwrap().get_cover_id();
+        let request_url = format!("https://api.mangadex.org/cover/{}", cover_id);
+        let cover_data = self.async_get_json::<CoverData>(&request_url).await;
+        let cover_file_name = cover_data.get_file_name();
+        
+        let request_url = format!(
+            "https://uploads.mangadex.org/covers/{}/{}",
+            &self.id,
+            &cover_file_name
+        );
+        let cover_image = connection::async_get_image(request_url, 0, false).await.unwrap();
+        cover_image
+    }
+
+    pub async fn download_chapters(&mut self, clear_previous: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Only fetch general data if not fetched
+        if self.title == "" || self.author_name == "" {
+            self.data = Some(self.get_manga_info().await);
+            
+            self.title.push_str(self.data.as_ref().unwrap().get_title());
+            self.fetch_author().await;
+        }
+
+        // Clear previous chapter data
+        if clear_previous {
+            self.chapter_images.clear();
+        }
+        
+        // Storing images into the vector
+        for chapter in self.chapter_list.as_ref().unwrap().data.iter() {
+            let chapter_images = chapter.download().await;
+            let chapter_img = ChapterImage {
+                chapter_no: chapter.get_chapter_number(),
+                chapter_title: String::from(chapter.get_name()),
+                target_name: chapter.generate_file_name(),
+                images: chapter_images
+            };
+
+            self.chapter_images.push(chapter_img);
+        }
+
+        Ok(())
+    }
+
+    pub fn get_total(&self) -> Option<i32> {
+        match &self.chapter_list {
+            Some(c) => {
+                Some(c.pagination.total)
+            },
+            None => None
+        }
+    }
+
+    pub async fn generate_epub(&mut self, output_path: &str) {
+        let mut book = Book::new();
+        
+        book.add_author(&self.author_name);
+        book.add_title(&self.title);
+        book.add_css("assets/page.css", "Styles/page.css");
+
+        let mut cover_image = self.fetch_cover().await;
+        book.add_cover_image(&mut cover_image);
+
+        for (j, ci) in self.chapter_images.iter_mut().enumerate() {
+            //book.add_chapter_partition(&ci.chapter_title, &format!("Text/Chapter_{}.xhtml", ci.chapter_no));
+            for (i, img) in ci.images.iter_mut().enumerate() {
+                let temp_path_name = format!("{}_{}", j, i);
+                book.add_image(
+                    img,
+                    i as i32,
+                    &ci.target_name.replace("ORDER", &temp_path_name),
+                    j as i32,
+                );
+            }
+        }
+
+        book.generate(output_path)
+            .expect("Failed to generate epub");
     }
 }
 
 impl From<&str> for Manga {
     fn from(url: &str) -> Self {
         let id = Manga::get_manga_id_from_url(url);
-        Manga { id, url: String::from(url) }
+        Manga { 
+            id,
+            url: String::from(url),
+            data: None,
+            title: String::from(""),
+            chapter_list: None,
+            chapter_images: Vec::new(),
+            author_name: String::from("")
+        }
+    }
+}
+
+impl MangaData {
+    pub fn get_title(&self) -> &str {
+        &self.data.attributes.title.en
+    }
+
+    pub fn get_author_id(&self) -> String {
+        let relationships = &self.data.relationships;
+        let mut id = String::from("");
+        for relation in relationships.iter() {
+            if relation.relation_type == "author" {
+                id.push_str(&relation.id);
+                break;
+            }
+        }
+
+        return id;
+    }
+
+    pub fn get_cover_id(&self) -> String {
+        let relationships = &self.data.relationships;
+        let mut id = String::from("");
+        for relation in relationships.iter() {
+            if relation.relation_type == "cover_art" {
+                id.push_str(&relation.id);
+                break;
+            }
+        }
+
+        return id;
+    }
+}
+
+impl AuthorData {
+    pub fn get_name(&self) -> &str {
+        &self.data.attributes.name
+    }
+}
+
+impl CoverData {
+    pub fn get_file_name(&self) -> &str {
+        &self.data.attributes.file_name
     }
 }
 
@@ -185,7 +402,12 @@ impl AsyncGet for Chapter {}
 impl Chapter {
     /// Returns the chapter number
     pub fn get_chapter_number(&self) -> f32 {
-        self.attributes.no.unwrap_or(0.0)
+        self.attributes.chapter.unwrap_or(0.0)
+    }
+
+    /// Returns the volume and chapter number to be used as file name
+    pub fn generate_file_name(&self) -> String {
+        String::from(format!("Images/{}_ORDER.jpg", self.attributes.chapter.unwrap_or(0.0)))
     }
 
     /// Returns the number of pages of a chapter
@@ -224,7 +446,7 @@ impl Chapter {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn download(&self) {
+    pub async fn download(&self) -> Vec<MangaImage> {
         let mut at_home_info = self.get_manga_at_home_info().await;
         let mut url = String::from(&at_home_info.base_url);
         url.push_str("/data/");
@@ -244,13 +466,7 @@ impl Chapter {
         let result = connection::async_get_image_batch(&mut all_img_url, 5)
             .await;
         
-        // TODO: Remove this
-        // Saving the images
-        for (i, pic) in result.iter().enumerate() {
-            let file_name = String::from("test_img/") + &i.to_string() + ".jpg";
-            pic.save(file_name)
-                .expect("Failed to save image");
-        }
+        result
     }
 }
 
@@ -286,12 +502,14 @@ impl AtHomeServerResponse {
 impl MangaImage {
     /// Creates a MangaImage object from the page number
     /// of the image and the image itself.
-    pub fn new(page_no: i32, image: DynamicImage) -> Self {
+    pub fn new(page_no: i32, image: Vec<u8>) -> Self {
         MangaImage { page_no, image }
     }
 
     /// Saves the image to a path
     pub fn save(&self, file_name: String) -> ImageResult<()> {
-        self.image.save(file_name)
+        let image = image::load_from_memory(&self.image)
+            .expect("Failed to parse image from bytes");
+        image.save(file_name)
     }
 }
