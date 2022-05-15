@@ -55,7 +55,8 @@ pub async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<
     }
 
     let image_bytes = res.bytes().await?;
-    let image = image::load_from_memory(&image_bytes)?;
+    let image = image_bytes.to_vec();
+    //let image = image::load_from_memory(&image_bytes)?;
     let image = MangaImage::new(page_no, image);
 
     if report {

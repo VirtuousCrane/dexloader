@@ -11,12 +11,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("Failed to read line");
     let url = url.trim();
     
-    let manga = Manga::from(url);
-    let chapters = manga.get_chapters(None, 0).await;
+    let mut manga = Manga::from(url);
+    //manga.get_chapters(None, 0).await;
     //let c = &chapters.get_chapters()[0];
-    let c = &chapters.data[0];
+    //let chapters = &manga.chapter_list.unwrap();
+    //let c = &chapters.data[0];
+    manga.get_chapters(Some(1), 0).await;
+    manga.download_chapters().await;
+    manga.generate_epub();
 
-    c.download().await;
+    //c.download().await;
 
     Ok(())
 }
