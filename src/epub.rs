@@ -3,7 +3,7 @@
 
 extern crate epub_builder;
 
-use std::fs;
+use std::fs::{self, File};
 use image::DynamicImage;
 use crate::manga::MangaImage;
 use epub_builder::{
@@ -37,6 +37,7 @@ pub struct Book {
 
 pub struct BookContent {
     pub order: i32,
+    pub chapter_order: i32,
     pub target_path: String,
 //    pub content: Vec<u8>,
     pub content: Content,
@@ -71,10 +72,11 @@ impl Book {
         Ok(())
     }
 
-    pub fn add_image(&mut self, img: &mut MangaImage, order: i32, target_path: &str) {
+    pub fn add_image(&mut self, img: &mut MangaImage, order: i32, target_path: &str, chapter_order: i32) {
         let img_free = std::mem::replace(&mut img.image, Vec::new());
         let resource = BookContent {
             order,
+            chapter_order,
             target_path: String::from(target_path),
             content: Content::Image(img_free),
             content_type: String::from("image/jpeg")
@@ -85,6 +87,7 @@ impl Book {
     pub fn add_chapter_partition(&mut self, title: &str, target_path: &str) {
         let resource = BookContent {
             order: -1,
+            chapter_order: -1,
             target_path: String::from(target_path),
             content: Content::Text(String::from(title)),
             content_type: String::from("chapter")
@@ -92,8 +95,9 @@ impl Book {
         self.resources.push(resource);
     }
 
-    pub fn add_cover_image(&mut self, img: DynamicImage) -> Result<()> {
-        self.constructor.add_cover_image("Images/cover.jpg", img.to_rgb8().to_vec().as_slice(), "image/jpeg")?;
+    pub fn add_cover_image(&mut self, img: &mut MangaImage) -> Result<()> {
+        let image = std::mem::replace(&mut img.image, Vec::new());
+        self.constructor.add_cover_image("Images/cover.jpg", image.as_slice(), "image/jpeg")?;
         Ok(())
     }
 
@@ -111,7 +115,7 @@ impl Book {
                         &format!("../{}", &resource.target_path)
                     );
                     let content = EpubContent::new(
-                        format!("Text/{}.xhtml", &resource.order),
+                        format!("Text/{}_{}.xhtml", &resource.chapter_order, &resource.order),
                         page_html.as_bytes()
                     )
                         .reftype(ReferenceType::Text);
@@ -126,7 +130,11 @@ impl Book {
                 },
             }
         }
-        self.constructor.generate(&mut std::io::stdout())?;
+
+        let f = File::create(output_path)
+            .expect(&format!("Failed to create file: {}", output_path));
+        //self.constructor.generate(&mut std::io::stdout())?;
+        self.constructor.generate(f)?;
         
         Ok(())
     }
