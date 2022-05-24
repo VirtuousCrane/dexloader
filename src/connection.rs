@@ -1,6 +1,7 @@
 //! This module is concerned with making asynchronous
 //! requests.
 extern crate reqwest;
+extern crate async_trait;
 extern crate tokio;
 extern crate futures;
 extern crate serde;
@@ -8,6 +9,9 @@ extern crate serde;
 use tokio::task::{self, JoinHandle};
 use futures::future::join_all;
 use serde::{Serialize, Deserialize};
+use serde::de::DeserializeOwned;
+use async_trait::async_trait;
+
 use std::time::Instant;
 
 use crate::manga::MangaImage;
@@ -22,6 +26,27 @@ struct ResponseBody {
     pub duration: u128
 }
 
+
+#[async_trait]
+/// A **data structure** that can make asynchronous get requests
+pub trait AsyncGet {
+    /// Makes an asynchronous get request and parse the result in a json format.
+    /// 
+    /// The return format can be denoted by the generic.
+    async fn async_get_json<T>(&self, url: &str) -> T 
+        where T: DeserializeOwned
+    {
+        let body = reqwest::get(url)
+            .await
+            .expect("Error yeeting a request")
+            .json::<T>()
+            .await
+            .expect("Failed deserializing json");
+        
+        body
+    }
+}
+
 /// Makes a get request to fetch an image asynchronously
 pub async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<MangaImage, Box<dyn std::error::Error + Send + Sync>> {
     let url_clone = url.clone();
@@ -32,10 +57,10 @@ pub async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<
     let elapsed_time = start_time.elapsed().as_millis();
 
     let headers = res.headers();
-    let cache = headers.get("x-cache")
-        .unwrap()
-        .to_str()
-        .unwrap_or("MISS");
+    let cache = match headers.get("x-cache") {
+        Some(hv) => {hv.to_str().unwrap_or("MISS")},
+        None => "MISS",
+    };
 
     let mut cache_state = false; 
     if cache == "HIT" {
