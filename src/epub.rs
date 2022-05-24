@@ -4,7 +4,6 @@
 extern crate epub_builder;
 
 use std::fs::{self, File};
-use image::DynamicImage;
 use crate::manga::MangaImage;
 use epub_builder::{
     EpubBuilder,
