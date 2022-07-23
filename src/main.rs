@@ -1,4 +1,3 @@
-use std::io;
 use std::str::FromStr;
 use std::env;
 
@@ -14,9 +13,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     argument_iterator.next();
     argument_iterator.next();
 
-    let mut output_path: &str = "";
-    let mut limit = 6;
+    let mut output_path: &str = ".epub";
+    let mut limit: Option<i32> = Some(6);
     let mut start = 0;
+    let mut end: Option<i32> = None;
     let mut single = false;
     
     while let Some(val) = argument_iterator.next() {
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(l) => {
                     let lim = i32::from_str(l)
                         .expect("Failed to parse limit value");
-                    limit = lim;
+                    limit = Some(lim);
                 },
                 None => panic!("No limit value specified")
             }
@@ -42,6 +42,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     start = st;
                 },
                 None => panic!("No start value specified")
+            }
+        } else if val == "-e" || val == "--end" {
+            match argument_iterator.next() {
+                Some(e) => {
+                    let ed = i32::from_str(e)
+                        .expect("Failed to parse end value");
+                    end = Some(ed);
+                },
+                None => panic!("No end value specified")
             }
         } else if val == "--single" {
             single = true;
@@ -58,7 +67,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut manga = Manga::from(url);
     let mut total = 0;
-    let mut iteration_count = 1;
     loop {
         if total != 0 && start > total {
             if single {
@@ -66,24 +74,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             break;
         }
+
+        match end {
+            Some(i) => {
+                if i <= start {
+                    break;
+                }
+            },
+            None => (),
+        }
         
-        manga.get_chapters(Some(limit), start).await;
+        manga.get_chapters(limit, start, end).await;
         total = manga.get_total().unwrap();
 
         manga.download_chapters(!single).await
             .expect("Failed to download chapters");
         
         if !single {
-            let temp = format!("File_{}_", start/limit);
+            let temp = format!("File_{}_", start/limit.unwrap());
             let path = temp + output_path;
+            println!("Saving {}", path);
             manga.generate_epub(&path).await;
         } else {
+            println!("Saving {}", output_path);
             manga.generate_epub(&output_path).await;
             break;
         }
 
-        iteration_count += 1;
-        start += limit;
+        start += limit.unwrap();
     }
 
     Ok(())

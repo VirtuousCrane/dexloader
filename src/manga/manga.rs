@@ -37,23 +37,39 @@ impl Manga {
     /// The offset indicates the "page" number of the request, and
     /// the chapter limit dictates how many chapters of manga is to
     /// be fetched per "page".
-    fn construct_manga_chapter_request_url(&self, offset: i32, chapter_limit: Option<i32>) -> String {
+    fn construct_manga_chapter_request_url(&self, offset: i32, chapter_limit: Option<i32>, end: Option<i32>) -> String {
         let mut req_url = String::from("https://api.mangadex.org/chapter?manga=");
         req_url.push_str(&self.id);
         req_url.push_str("&translatedLanguage[]=en");
 
-        match chapter_limit {
-            Some(i) => {
-                req_url.push_str("&limit=");
-                req_url.push_str(&i.to_string())
-            },
-            None => (),
-        };
+        let count_to_end: i32;
 
         if offset != 0 {
             req_url.push_str("&offset=");
             req_url.push_str(&offset.to_string());
         }
+
+        match end {
+            Some(i) => {
+                count_to_end = i - offset;
+            },
+            None => {
+                count_to_end = -1;
+            },
+        };
+
+        match chapter_limit {
+            Some(i) => {
+                let mut limit = i;
+                if count_to_end != -1 && count_to_end < limit {
+                    limit = count_to_end;
+                }
+                
+                req_url.push_str("&limit=");
+                req_url.push_str(&limit.to_string())
+            },
+            None => (),
+        };
 
         req_url
     }
@@ -76,9 +92,13 @@ impl Manga {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_chapters(&mut self, chapter_limit: Option<i32>, offset: i32) {
-        let request_url = self.construct_manga_chapter_request_url(offset, chapter_limit);
-        self.chapter_list = Some(self.async_get_json::<ChapterList>(&request_url).await);
+    pub async fn get_chapters(&mut self, chapter_limit: Option<i32>, offset: i32, end: Option<i32>) {
+        let request_url = self.construct_manga_chapter_request_url(offset, chapter_limit, end);
+
+        let mut unsorted_chapter_list = self.async_get_json::<ChapterList>(&request_url).await;
+        unsorted_chapter_list.sort_chapters();
+
+        self.chapter_list = Some(unsorted_chapter_list);
     }
 
     async fn get_manga_info(&mut self) -> MangaData {
@@ -112,7 +132,7 @@ impl Manga {
     }
 
     pub async fn download_chapters(&mut self, clear_previous: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Only fetch general data if not fetched
+        // Fetch general data if not fetched
         if self.title == "" || self.author_name == "" {
             self.data = Some(self.get_manga_info().await);
             

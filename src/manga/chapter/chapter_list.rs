@@ -19,3 +19,9 @@ pub struct Pagination {
     pub offset: i32,
     pub total: i32,
 }
+
+impl ChapterList {
+    pub fn sort_chapters(&mut self) {
+        self.data.sort_by(|chapter1, chapter2| chapter1.get_chapter_number().partial_cmp(&chapter2.get_chapter_number()).unwrap());
+    }
+}
