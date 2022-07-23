@@ -71,6 +71,8 @@ impl Manga {
             None => (),
         };
 
+        req_url.push_str("&order[chapter]=asc");
+
         req_url
     }
 
