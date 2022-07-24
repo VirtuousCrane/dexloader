@@ -18,6 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut start = 0;
     let mut end: Option<i32> = None;
     let mut single = false;
+    let mut report = true;
     
     while let Some(val) = argument_iterator.next() {
         if val == "-o" || val == "--output" {
@@ -54,6 +55,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         } else if val == "--single" {
             single = true;
+        } else if val == "--no-report" {
+            report = false;
         }
     }
 
@@ -87,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         manga.get_chapters(limit, start, end).await;
         total = manga.get_total().unwrap();
 
-        manga.download_chapters(!single).await
+        manga.download_chapters(!single, report).await
             .expect("Failed to download chapters");
         
         if !single {

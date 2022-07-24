@@ -51,11 +51,13 @@ pub trait AsyncGet {
 pub async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<MangaImage, Box<dyn std::error::Error + Send + Sync>> {
     let url_clone = url.clone();
 
+    // Downloading the image and timing it
     let start_time = Instant::now();
     let res = reqwest::get(url)
         .await?;
     let elapsed_time = start_time.elapsed().as_millis();
 
+    // Getting whether the server returned x-cache
     let headers = res.headers();
     let cache = match headers.get("x-cache") {
         Some(hv) => {hv.to_str().unwrap_or("MISS")},
@@ -67,27 +69,28 @@ pub async fn async_get_image(url: String, page_no: i32, report: bool) -> Result<
         cache_state = true;
     }
 
+    // Getting the size of the image
     let content_length = headers.get("content-length")
         .unwrap()
         .to_str()
         .unwrap_or("0");
     let content_length = content_length.parse::<usize>().unwrap();
 
-    if !res.status().is_success() && report {
+    // Reporting whether the image was successfully downloaded
+    let is_mangadex_url = url_clone.contains("mangadex.org");
+    if report && !res.status().is_success() && !is_mangadex_url {
         async_report(url_clone, false, cache_state, content_length, elapsed_time)
             .await?;
         panic!("Failed to retrieve image!"); // TODO: Use ERR or retry instead
-    }
-
-    let image_bytes = res.bytes().await?;
-    let image = image_bytes.to_vec();
-    //let image = image::load_from_memory(&image_bytes)?;
-    let image = MangaImage::new(page_no, image);
-
-    if report {
+    } else if report && !is_mangadex_url {
         async_report(url_clone, true, cache_state, content_length, elapsed_time).await?;
     }
-    
+
+    // Saving the image
+    let image_bytes = res.bytes().await?;
+    let image = image_bytes.to_vec();
+    let image = MangaImage::new(page_no, image);
+
     Ok(image)
 }
 
@@ -125,7 +128,7 @@ async fn async_report(url: String, success: bool, cached: bool, bytes: usize, du
 /// 
 /// The number of images to download at the same time can
 /// be specified with the "concurrent_process" variable.
-pub async fn async_get_image_batch(batch: &mut Vec<String>, concurrent_process : i32) -> Vec<MangaImage> {
+pub async fn async_get_image_batch(batch: &mut Vec<String>, concurrent_process : i32, report: bool) -> Vec<MangaImage> {
     let mut handle_vec: Vec<JoinHandle<Result<MangaImage, Box<dyn std::error::Error + Send + Sync>>>> = Vec::new();
     let mut result_images: Vec<MangaImage> = Vec::new();
 
@@ -136,7 +139,7 @@ pub async fn async_get_image_batch(batch: &mut Vec<String>, concurrent_process :
             match batch.pop() {
                 Some(url) => {
                     let page_no : i32 = i as i32 + j;
-                    handle_vec.push(task::spawn(async_get_image(url, page_no, false)));
+                    handle_vec.push(task::spawn(async_get_image(url, page_no, report)));
                 },
                 None => (),
             }

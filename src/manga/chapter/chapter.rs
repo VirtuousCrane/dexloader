@@ -79,7 +79,7 @@ impl Chapter {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn download(&self) -> Vec<MangaImage> {
+    pub async fn download(&self, report: bool) -> Vec<MangaImage> {
         let mut at_home_info = self.get_manga_at_home_info().await;
         let mut url = String::from(&at_home_info.base_url);
         url.push_str("/data/");
@@ -96,7 +96,7 @@ impl Chapter {
             .collect();
         all_img_url.reverse();
 
-        let result = connection::async_get_image_batch(&mut all_img_url, 5)
+        let result = connection::async_get_image_batch(&mut all_img_url, 5, report)
             .await;
         
         result

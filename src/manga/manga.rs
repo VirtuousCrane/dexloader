@@ -133,7 +133,7 @@ impl Manga {
         cover_image
     }
 
-    pub async fn download_chapters(&mut self, clear_previous: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn download_chapters(&mut self, clear_previous: bool, report: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Fetch general data if not fetched
         if self.title == "" || self.author_name == "" {
             self.data = Some(self.get_manga_info().await);
@@ -149,7 +149,7 @@ impl Manga {
         
         // Storing images into the vector
         for chapter in self.chapter_list.as_ref().unwrap().data.iter() {
-            let chapter_images = chapter.download().await;
+            let chapter_images = chapter.download(report).await;
             let chapter_img = ChapterImage {
                 chapter_no: chapter.get_chapter_number(),
                 chapter_title: String::from(chapter.get_name()),
