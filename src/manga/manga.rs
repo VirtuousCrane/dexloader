@@ -97,10 +97,10 @@ impl Manga {
     pub async fn get_chapters(&mut self, chapter_limit: Option<i32>, offset: i32, end: Option<i32>) {
         let request_url = self.construct_manga_chapter_request_url(offset, chapter_limit, end);
 
-        let mut unsorted_chapter_list = self.async_get_json::<ChapterList>(&request_url).await;
-        unsorted_chapter_list.sort_chapters();
+        let mut chapter_list = self.async_get_json::<ChapterList>(&request_url).await;
+        chapter_list.sort_chapters();
 
-        self.chapter_list = Some(unsorted_chapter_list);
+        self.chapter_list = Some(chapter_list);
     }
 
     async fn get_manga_info(&mut self) -> MangaData {

@@ -98,7 +98,7 @@ async fn async_report(url: String, success: bool, cached: bool, bytes: usize, du
 
     let body = ResponseBody {url, success, cached, bytes, duration};
 
-    let res = client.post("https://api.mangadex.org/report")
+    let res = client.post("https://api.mangadex.network/report")
         .json(&body)
         .send()
         .await?;
@@ -110,7 +110,7 @@ async fn async_report(url: String, success: bool, cached: bool, bytes: usize, du
             .to_str()
             .expect("Cannot get captcha answer");
         
-        let cap_res = client.post("https://api.mangadex.org/report")
+        let cap_res = client.post("https://api.mangadex.network/report")
             .header("X-Captcha-Result", captcha_ans)
             .json(&body)
             .send()
